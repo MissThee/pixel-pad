@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<input type="button" onclick="enableEraserHandler()" value="擦除"/>
+<input type="button" onclick="enableDefaultHandler()" value="画笔"/>
+<input type="button" onclick="zoomUp()" value="放大"/>
+<input type="button" onclick="zoomReset()" value="恢复缩放"/>
+<input type="button" onclick="zoomIn()" value="缩小"/>
+<input type="button" onclick="undo()" value="撤销"/>
+<input type="button" onclick="redo()" value="重做"/>
+<input type="button" onclick="getFinallyDrawInfo()" value="获取图片绘画信息"/>
+<div id='pa' style="height: 320px;width:640px"></div>
+<div id="log"></div>
+<script>
+    class PixelPad {
+        canvasEl
+        ctx
+        option = {}
+        optionOrigin = {}
+        optionDefault = {
+            bgColor: '#e8e8e8',
+            drawColor: '#00a711',
+            boxSize: 10,
+            gridLineWidth: 1,
+            boxXMax: 0,
+            BoxYMax: 0
+        }
+
+        isDrawing = false
+        isReducingDrewBox = false
+        drawHistoryInfo = []
+        drawHistoryInfoForRedo = []
+        constructor(htmlNode, option) {
+            this.option = {...this.optionDefault, ...option}
+            this.optionOrigin = JSON.parse(JSON.stringify(this.option))
+            this.initCanvasEl(htmlNode)
+            this.setPad()
+            this.setAction()
+        }
+
+        initCanvasEl(htmlNode) {
+            const canvasEl = document.createElement('canvas');
+            canvasEl.style.padding = '0'
+            canvasEl.style.margin = '0'
+            canvasEl.style.boxSizing = 'border-box'
+            canvasEl.style.height = 100 + '%'
+            canvasEl.style.width = 100 + '%'
+            htmlNode.append(canvasEl)
+            this.canvasEl = canvasEl
+            this.ctx = canvasEl.getContext('2d')
+        }
+
+        setPad() {
+            this.canvasEl.width = this.canvasEl.clientWidth
+            this.canvasEl.height = this.canvasEl.clientHeight
+            this.option.bgBoxNumX = parseInt(String(this.canvasEl.width / this.option.boxSize))
+            this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
+            this.fillBg()
+            this.fillBoxInCanvasFastByDrawHistoryInfo()
+        }
+
+        setAction() {
+            let drawHandler = (e) => {
+                if (this.isDrawing) {
+                    const x = e.pageX - this.canvasEl.getBoundingClientRect().left
+                    const y = e.pageY - this.canvasEl.getBoundingClientRect().top
+                    const position = this.getBoxXY(x, y)
+                    this.drawBox(position.boxX, position.boxY)
+                }
+            }
+            this.canvasEl.addEventListener("mousedown", (e) => {
+                this.drawHistoryInfoForRedo = []
+                this.drawHistoryInfo.push([])
+                this.isDrawing = true
+                drawHandler(e)
+                this.canvasEl.addEventListener("mousemove", drawHandler)
+            })
+            document.addEventListener("mouseup", (e) => {
+                drawHandler(e)
+                this.isDrawing = false
+                this.canvasEl.removeEventListener("mousemove", drawHandler)
+            })
+        }
+
+        fillBg() {
+            for (let boxX = 0; boxX < this.option.bgBoxNumX; boxX++) {
+                for (let boxY = 0; boxY < this.option.bgBoxNumY; boxY++) {
+                    this.fillBoxInCanvas(boxX, boxY)
+                }
+            }
+        }
+
+        fillBoxInCanvas(boxX, boxY, color) {
+            boxX *= this.option.boxSize
+            boxY *= this.option.boxSize
+            this.ctx.beginPath()
+            this.ctx.fillStyle = color || this.option.bgColor;
+            this.ctx.fillRect(boxX + this.option.gridLineWidth, boxY + this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth);
+            this.ctx.fill()
+            this.ctx.stroke()
+            this.ctx.closePath()
+        }
+
+        fillBoxInCanvasFastByDrawHistoryInfo() {
+            const finallyDrawInfo = this.getFinallyDrawInfo()
+            for (const pixel of finallyDrawInfo) {
+                this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+            }
+        }
+
+        // 辅助函数----开始
+        // 检查像素点是否在画板内
+        checkIsNeedDrawInCanvas(boxX, boxY) {
+            return boxX >= 0 && boxX <= this.option.bgBoxNumX && boxY >= 0 && boxY <= this.option.bgBoxNumY
+        }
+
+        // 辅助函数----结束
+
+        //通过鼠标坐标，获取方块的个数横纵坐标
+        getBoxXY(x, y) {
+            const boxX = Math.floor(x / this.option.boxSize)
+            const boxY = Math.floor(y / this.option.boxSize)
+            return {boxX, boxY}
+        }
+
+        drawBox(boxX, boxY) {
+            const currentDrawHistoryInfo = this.drawHistoryInfo[this.drawHistoryInfo.length-1]
+            currentDrawHistoryInfo.push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
+            this.fillBoxInCanvas(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
+        }
+
+        // 切换当前使用工具
+        setUsingTool(toolName) {
+            switch (toolName) {
+                case "eraser":
+                    this.isReducingDrewBox = true
+                    break;
+                default:
+                    this.isReducingDrewBox = false
+                    break;
+            }
+        }
+
+        // 设置缩放等级
+        zoomUpdate(boxSize) {
+            this.option.boxSize = Math.max(boxSize, 2)
+            this.setPad()
+        }
+
+        // 重置缩放等级
+        zoomReset() {
+            this.option.boxSize = this.optionOrigin.boxSize
+            this.setPad()
+        }
+
+        // 撤销
+        undo() {
+            const undoDraw = this.drawHistoryInfo.pop()
+            if (undoDraw) {
+                this.drawHistoryInfoForRedo.push(undoDraw)
+                this.fillBg()
+                this.fillBoxInCanvasFastByDrawHistoryInfo()
+            }
+        }
+
+        // 重做
+        redo() {
+            const redoDraw = this.drawHistoryInfoForRedo.pop()
+            if (redoDraw) {
+                this.drawHistoryInfo.push(redoDraw)
+                this.fillBg()
+                this.fillBoxInCanvasFastByDrawHistoryInfo()
+            }
+        }
+
+        // 获取最终绘画像素信息
+        getFinallyDrawInfo() {
+            const finallyDrawInfo = []
+            for (const historyDraw of this.drawHistoryInfo) {
+                for (const historyPixel of historyDraw) {
+                    const existPixelIndex = finallyDrawInfo.findIndex(item => item && historyPixel && item.x === historyPixel.x && item.y === historyPixel.y)
+                    if (existPixelIndex >= 0) {
+                        if (historyPixel.color === null) {
+                            delete finallyDrawInfo[existPixelIndex]
+                        } else {
+                            finallyDrawInfo[finallyDrawInfo] = historyPixel
+                        }
+                    } else {
+                        finallyDrawInfo.push(historyPixel)
+                    }
+                }
+            }
+            return finallyDrawInfo.filter(e => e)
+        }
+    }
+
+    const pixelPad = new PixelPad(document.getElementById('pa'))
+
+    function enableEraserHandler() {
+        pixelPad.setUsingTool('eraser')
+    }
+
+    function enableDefaultHandler() {
+        pixelPad.setUsingTool()
+    }
+
+    function zoomUp() {
+        pixelPad.zoomUpdate(pixelPad.option.boxSize + 2)
+    }
+
+    function zoomIn() {
+        pixelPad.zoomUpdate(pixelPad.option.boxSize - 2)
+    }
+
+    function zoomReset() {
+        pixelPad.zoomReset()
+    }
+
+    function undo() {
+        pixelPad.undo()
+    }
+
+    function redo() {
+        pixelPad.redo()
+    }
+
+    function getFinallyDrawInfo() {
+        document.getElementById('log').innerText = JSON.stringify(pixelPad.getFinallyDrawInfo())
+    }
+</script>
+</body>
+<style>
+    * {
+        padding: 0;
+        margin: 0;
+        background-color: whitesmoke;
+    }
+</style>
+</html>
