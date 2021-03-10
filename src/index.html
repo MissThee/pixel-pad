@@ -7,9 +7,9 @@
 <body>
 <input type="button" onclick="enableEraserHandler()" value="擦除"/>
 <input type="button" onclick="enableDefaultHandler()" value="画笔"/>
-<input type="button" onclick="zoomUp()" value="放大"/>
-<input type="button" onclick="zoomReset()" value="恢复缩放"/>
-<input type="button" onclick="zoomIn()" value="缩小"/>
+<!--<input type="button" onclick="zoomUp()" value="放大"/>-->
+<!--<input type="button" onclick="zoomReset()" value="恢复缩放"/>-->
+<!--<input type="button" onclick="zoomIn()" value="缩小"/>-->
 <input type="button" onclick="undo()" value="撤销"/>
 <input type="button" onclick="redo()" value="重做"/>
 <input type="button" onclick="getFinallyDrawInfo()" value="获取图片绘画信息"/>
@@ -25,15 +25,15 @@
             bgColor: '#e8e8e8',
             drawColor: '#00a711',
             boxSize: 10,
+            boxSizeMin: 5,
+            boxSizeMax: 20,
             gridLineWidth: 1,
-            boxXMax: 0,
-            BoxYMax: 0
         }
-
-        isDrawing = false
+        // isMoving = false
         isReducingDrewBox = false
         drawHistoryInfo = []
         drawHistoryInfoForRedo = []
+
         constructor(htmlNode, option) {
             this.option = {...this.optionDefault, ...option}
             this.optionOrigin = JSON.parse(JSON.stringify(this.option))
@@ -64,24 +64,41 @@
         }
 
         setAction() {
-            let drawHandler = (e) => {
-                if (this.isDrawing) {
-                    const x = e.pageX - this.canvasEl.getBoundingClientRect().left
-                    const y = e.pageY - this.canvasEl.getBoundingClientRect().top
-                    const position = this.getBoxXY(x, y)
-                    this.drawBox(position.boxX, position.boxY)
-                }
+            const drawHandler = (e) => {
+                const x = e.pageX - this.canvasEl.getBoundingClientRect().left
+                const y = e.pageY - this.canvasEl.getBoundingClientRect().top
+                const position = this.getBoxXY(x, y)
+                this.drawBox(position.boxX, position.boxY)
             }
+            // const moveHandler = (e) => {
+            //
+            // }
+
+            // document.addEventListener('keydown', (e) => {
+            //     if (e.key === 'Control') {
+            //         this.canvasEl.style.cursor='move'
+            //         this.isMoving = true
+            //     }
+            // })
+            // document.addEventListener('keyup', (e) => {
+            //     if (e.key === 'Control') {
+            //         this.canvasEl.style.cursor='auto'
+            //         this.isMoving = false
+            //     }
+            // })
+
             this.canvasEl.addEventListener("mousedown", (e) => {
-                this.drawHistoryInfoForRedo = []
-                this.drawHistoryInfo.push([])
-                this.isDrawing = true
-                drawHandler(e)
-                this.canvasEl.addEventListener("mousemove", drawHandler)
+                // if (this.isMoving) {
+                //     this.canvasEl.addEventListener("mousemove", moveHandler)
+                // } else {
+                    this.drawHistoryInfoForRedo = []
+                    this.drawHistoryInfo.push([])
+                    drawHandler(e)
+                    this.canvasEl.addEventListener("mousemove", drawHandler)
+                // }
             })
-            document.addEventListener("mouseup", (e) => {
-                drawHandler(e)
-                this.isDrawing = false
+            document.addEventListener("mouseup", () => {
+                // this.canvasEl.removeEventListener("mousemove", moveHandler)
                 this.canvasEl.removeEventListener("mousemove", drawHandler)
             })
         }
@@ -108,7 +125,9 @@
         fillBoxInCanvasFastByDrawHistoryInfo() {
             const finallyDrawInfo = this.getFinallyDrawInfo()
             for (const pixel of finallyDrawInfo) {
-                this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+                if (this.checkIsNeedDrawInCanvas(pixel.x, pixel.y)) {
+                    this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+                }
             }
         }
 
@@ -128,7 +147,7 @@
         }
 
         drawBox(boxX, boxY) {
-            const currentDrawHistoryInfo = this.drawHistoryInfo[this.drawHistoryInfo.length-1]
+            const currentDrawHistoryInfo = this.drawHistoryInfo[this.drawHistoryInfo.length - 1]
             currentDrawHistoryInfo.push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
             this.fillBoxInCanvas(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
         }
@@ -145,17 +164,18 @@
             }
         }
 
-        // 设置缩放等级
-        zoomUpdate(boxSize) {
-            this.option.boxSize = Math.max(boxSize, 2)
-            this.setPad()
-        }
-
-        // 重置缩放等级
-        zoomReset() {
-            this.option.boxSize = this.optionOrigin.boxSize
-            this.setPad()
-        }
+        // // 设置缩放等级
+        // zoomUpdate(boxSize) {
+        //     this.option.boxSize = Math.max(boxSize, this.option.boxSizeMin, 1)
+        //     this.option.boxSize = Math.min(boxSize, this.option.boxSizeMax, 50)
+        //     this.setPad()
+        // }
+        //
+        // // 重置缩放等级
+        // zoomReset() {
+        //     this.option.boxSize = this.optionOrigin.boxSize
+        //     this.setPad()
+        // }
 
         // 撤销
         undo() {
@@ -208,17 +228,17 @@
         pixelPad.setUsingTool()
     }
 
-    function zoomUp() {
-        pixelPad.zoomUpdate(pixelPad.option.boxSize + 2)
-    }
-
-    function zoomIn() {
-        pixelPad.zoomUpdate(pixelPad.option.boxSize - 2)
-    }
-
-    function zoomReset() {
-        pixelPad.zoomReset()
-    }
+    // function zoomUp() {
+    //     pixelPad.zoomUpdate(pixelPad.option.boxSize + 2)
+    // }
+    //
+    // function zoomIn() {
+    //     pixelPad.zoomUpdate(pixelPad.option.boxSize - 2)
+    // }
+    //
+    // function zoomReset() {
+    //     pixelPad.zoomReset()
+    // }
 
     function undo() {
         pixelPad.undo()
