@@ -12,7 +12,11 @@
 <!--<input type="button" onclick="zoomIn()" value="缩小"/>-->
 <input type="button" onclick="undo()" value="撤销"/>
 <input type="button" onclick="redo()" value="重做"/>
-<input type="button" onclick="getFinallyDrawInfo()" value="获取图片绘画信息"/>
+<input type="button" onclick="save()" value="保存"/>
+<input id="saveInput" value=""/>
+<input type="button" onclick="load()" value="加载"/>
+<input id="loadInput" value=""/>
+
 <div id='pa' style="height: 320px;width:640px"></div>
 <div id="log"></div>
 <script>
@@ -91,10 +95,10 @@
                 // if (this.isMoving) {
                 //     this.canvasEl.addEventListener("mousemove", moveHandler)
                 // } else {
-                    this.drawHistoryInfoForRedo = []
-                    this.drawHistoryInfo.push([])
-                    drawHandler(e)
-                    this.canvasEl.addEventListener("mousemove", drawHandler)
+                this.drawHistoryInfoForRedo = []
+                this.drawHistoryInfo.push([])
+                drawHandler(e)
+                this.canvasEl.addEventListener("mousemove", drawHandler)
                 // }
             })
             document.addEventListener("mouseup", () => {
@@ -112,32 +116,26 @@
         }
 
         fillBoxInCanvas(boxX, boxY, color) {
-            boxX *= this.option.boxSize
-            boxY *= this.option.boxSize
-            this.ctx.beginPath()
-            this.ctx.fillStyle = color || this.option.bgColor;
-            this.ctx.fillRect(boxX + this.option.gridLineWidth, boxY + this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth);
-            this.ctx.fill()
-            this.ctx.stroke()
-            this.ctx.closePath()
-        }
-
-        fillBoxInCanvasFastByDrawHistoryInfo() {
-            const finallyDrawInfo = this.getFinallyDrawInfo()
-            for (const pixel of finallyDrawInfo) {
-                if (this.checkIsNeedDrawInCanvas(pixel.x, pixel.y)) {
-                    this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
-                }
+            if (boxX >= 0 && boxX <= this.option.bgBoxNumX && boxY >= 0 && boxY <= this.option.bgBoxNumY) {
+                const PixelX = boxX * this.option.boxSize
+                const PixelY = boxY * this.option.boxSize
+                this.ctx.beginPath()
+                this.ctx.fillStyle = color || this.option.bgColor;
+                this.ctx.fillRect(PixelX + this.option.gridLineWidth, PixelY + this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth, this.option.boxSize - this.option.gridLineWidth);
+                this.ctx.fill()
+                this.ctx.stroke()
+                this.ctx.closePath()
             }
         }
 
-        // 辅助函数----开始
-        // 检查像素点是否在画板内
-        checkIsNeedDrawInCanvas(boxX, boxY) {
-            return boxX >= 0 && boxX <= this.option.bgBoxNumX && boxY >= 0 && boxY <= this.option.bgBoxNumY
+        // 使用历史记录中的点填充画板
+        fillBoxInCanvasFastByDrawHistoryInfo() {
+            const finallyDrawInfo = this.save()
+            for (const pixel of finallyDrawInfo) {
+                this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+            }
         }
 
-        // 辅助函数----结束
 
         //通过鼠标坐标，获取方块的个数横纵坐标
         getBoxXY(x, y) {
@@ -197,8 +195,16 @@
             }
         }
 
+        // 使用保存的绘画像素信息填充画板
+        load(drawInfo) {
+            this.fillBg()
+            for (const pixel of drawInfo) {
+                this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+            }
+        }
+
         // 获取最终绘画像素信息
-        getFinallyDrawInfo() {
+        save() {
             const finallyDrawInfo = []
             for (const historyDraw of this.drawHistoryInfo) {
                 for (const historyPixel of historyDraw) {
@@ -248,8 +254,11 @@
         pixelPad.redo()
     }
 
-    function getFinallyDrawInfo() {
-        document.getElementById('log').innerText = JSON.stringify(pixelPad.getFinallyDrawInfo())
+    function save() {
+        document.getElementById('saveInput').value = JSON.stringify(pixelPad.save())
+    }
+    function load(){
+        pixelPad.load(JSON.parse(document.getElementById('loadInput').value))
     }
 </script>
 </body>
