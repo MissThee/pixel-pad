@@ -1,4 +1,7 @@
 export default class PixelPad {
+    wrapperEl
+    canvasElOff
+    ctxOff
     canvasEl
     ctx
     option = {}
@@ -12,8 +15,13 @@ export default class PixelPad {
         gridLineWidth: 1,
     }
     preDrawBoxPoint = null
+    bgImageData = null
     // isMoving = false
+    isDrawing = false
     isReducingDrewBox = false
+    useHistoryInfo = false//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
+    drawHistoryImages = []
+    drawHistoryImagesForRedo = []
     drawHistoryInfo = []
     drawHistoryInfoForRedo = []
 
@@ -26,24 +34,40 @@ export default class PixelPad {
     }
 
     initCanvasEl(htmlNode) {
-        const canvasEl = document.createElement('canvas');
-        canvasEl.style.padding = '0'
-        canvasEl.style.margin = '0'
-        canvasEl.style.boxSizing = 'border-box'
-        canvasEl.style.height = 100 + '%'
-        canvasEl.style.width = 100 + '%'
-        htmlNode.append(canvasEl)
-        this.canvasEl = canvasEl
-        this.ctx = canvasEl.getContext('2d')
+
+        const setEl = (canvasEl) => {
+            canvasEl.style.padding = '0'
+            canvasEl.style.margin = '0'
+            canvasEl.style.boxSizing = 'border-box'
+            canvasEl.style.height = 100 + '%'
+            canvasEl.style.width = 100 + '%'
+        }
+        this.wrapperEl = document.createElement('div');
+        setEl(this.wrapperEl)
+
+        this.canvasElOff = document.createElement('canvas');
+        this.ctxOff = this.canvasElOff.getContext('2d')
+        setEl(this.canvasElOff)
+
+        this.canvasEl = document.createElement('canvas');
+        this.ctx = this.canvasEl.getContext('2d')
+        setEl(this.canvasEl)
+
+        this.wrapperEl.append(this.canvasEl)
+        htmlNode.append(this.wrapperEl)
     }
 
     setPad() {
-        this.canvasEl.width = this.canvasEl.clientWidth
-        this.canvasEl.height = this.canvasEl.clientHeight
+        const setCanvasSize = (canvasEl) => {
+            canvasEl.width = this.canvasEl.clientWidth
+            canvasEl.height = this.canvasEl.clientHeight
+        }
+        setCanvasSize(this.canvasEl)
+        setCanvasSize(this.canvasElOff)
         this.option.bgBoxNumX = parseInt(String(this.canvasEl.width / this.option.boxSize))
         this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
-        this.fillBg()
-        this.fillBoxInCanvasFastByDrawHistoryInfo()
+        this.fillBgInOff()
+        this.ctx.drawImage(this.canvasElOff, 0, 0)
     }
 
     setAction() {
@@ -51,9 +75,14 @@ export default class PixelPad {
             const x = e.pageX - this.canvasEl.getBoundingClientRect().left
             const y = e.pageY - this.canvasEl.getBoundingClientRect().top
             const position = this.getBoxXY(x, y)
-            console.log('this.preDrawBoxPoint',this.preDrawBoxPoint)
+            console.log('this.preDrawBoxPoint', this.preDrawBoxPoint)
             if (this.preDrawBoxPoint === null) {
-                this.drawBox(position.boxX, position.boxY)
+                const boxX = position.boxX
+                const boxY = position.boxY
+                if (this.useHistoryInfo) {
+                    this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
+                }
+                this.fillBoxInCanvasInOff(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
             } else {
                 //起点和终点定位到当前格子的正中心
                 const xStartFixed = Math.floor(this.preDrawBoxPoint.x / this.option.boxSize) * this.option.boxSize + this.option.boxSize / 2
@@ -105,18 +134,22 @@ export default class PixelPad {
                 console.log('p ', xStart, yStart, xEnd, yEnd, xProgress)
                 console.log('d ', xDirection, yDirection)
                 for (; xStart <= xEnd && (yDirection > 0 ? yStart <= yEnd : yStart >= yEnd); xStart += xProgress, yStart += yProgress * yDirection) {
-                    console.log(xStart,yStart,xEnd,yEnd,yDirection,xProgress,yProgress)
+                    console.log(xStart, yStart, xEnd, yEnd, yDirection, xProgress, yProgress)
                     // console.log(xStart, yStart, Math.floor(xStart / this.option.boxSize), Math.floor(yStart / this.option.boxSize))
-                    this.drawBox(Math.floor(xStart / this.option.boxSize), Math.floor(yStart / this.option.boxSize))
+                    const boxX = Math.floor(xStart / this.option.boxSize)
+                    const boxY = Math.floor(yStart / this.option.boxSize)
+                    if (this.useHistoryInfo) {
+                        this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
+                    }
+                    this.fillBoxInCanvasInOff(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
                 }
             }
             this.preDrawBoxPoint = {x, y}
-
+            this.ctx.drawImage(this.canvasElOff, 0, 0)
         }
         // const moveHandler = (e) => {
         //
         // }
-
         // document.addEventListener('keydown', (e) => {
         //     if (e.key === 'Control') {
         //         this.canvasEl.style.cursor='move'
@@ -134,8 +167,13 @@ export default class PixelPad {
             // if (this.isMoving) {
             //     this.canvasEl.addEventListener("mousemove", moveHandler)
             // } else {
-            this.drawHistoryInfoForRedo = []
-            this.drawHistoryInfo.push([])
+            if (this.useHistoryInfo) {
+                this.drawHistoryInfoForRedo = []
+                this.drawHistoryInfo.push([])
+            } else {
+                this.drawHistoryImagesForRedo = []
+                this.isDrawing = true
+            }
             drawHandler(e)
             this.canvasEl.addEventListener("mousemove", drawHandler)
             // }
@@ -143,19 +181,31 @@ export default class PixelPad {
         document.addEventListener("mouseup", () => {
             // this.canvasEl.removeEventListener("mousemove", moveHandler)
             this.canvasEl.removeEventListener("mousemove", drawHandler)
-            // this.preDrawBoxPoint=null
+            this.preDrawBoxPoint = null
+            if (!this.useHistoryInfo) {
+                if (this.isDrawing) {
+                    this.drawHistoryImages.push(this.ctxOff.getImageData(0, 0, this.canvasElOff.width, this.canvasElOff.height))
+                    this.isDrawing = false
+                }
+            }
         })
     }
 
-    fillBg() {
+    fillBgInOff() {
+        if (this.bgImageData) {
+            this.ctxOff.putImageData(this.bgImageData, 0, 0)
+            this.ctx.putImageData(this.bgImageData, 0, 0)
+            return
+        }
         for (let boxX = 0; boxX < this.option.bgBoxNumX; boxX++) {
             for (let boxY = 0; boxY < this.option.bgBoxNumY; boxY++) {
-                this.fillBoxInCanvas(boxX, boxY)
+                this.fillBoxInCanvasInOff(boxX, boxY)
             }
         }
+        this.bgImageData = this.ctxOff.getImageData(0, 0, this.canvasElOff.width, this.canvasElOff.height)
     }
 
-    fillBoxInCanvas(boxX, boxY, color) {
+    fillBoxInCanvasInOff(boxX, boxY, color) {
         if (boxX >= 0 && boxX <= this.option.bgBoxNumX && boxY >= 0 && boxY <= this.option.bgBoxNumY) {
             const gridLineWidth = Math.floor(Math.floor(this.option.gridLineWidth * 2) / 2 * 10) / 10
             const pixFix = gridLineWidth % 2 === 0 ? 0 : 0.5
@@ -165,12 +215,18 @@ export default class PixelPad {
             const y = boxY * this.option.boxSize + splitLineStart
             const w = this.option.boxSize - splitLineFix
             const h = w
-            this.ctx.beginPath()
-            this.ctx.fillStyle = color || this.option.bgColor;
-            this.ctx.fillRect(x, y, w, h);
-            this.ctx.fill()
-            this.ctx.stroke()
-            this.ctx.closePath()
+            this.ctxOff.fillStyle = color || this.option.bgColor;
+            this.ctxOff.fillRect(x, y, w, h);
+        }
+    }
+
+    fillBoxInCanvasFastByDrawHistoryImage() {
+        const lastImage = this.drawHistoryImages[this.drawHistoryImages.length - 1]
+        if (lastImage) {
+            this.ctx.putImageData(lastImage, 0, 0)
+            this.ctxOff.putImageData(lastImage, 0, 0)
+        } else {
+            this.fillBgInOff()
         }
     }
 
@@ -178,8 +234,9 @@ export default class PixelPad {
     fillBoxInCanvasFastByDrawHistoryInfo() {
         const finallyDrawInfo = this.save()
         for (const pixel of finallyDrawInfo) {
-            this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+            this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
+        this.ctx.drawImage(this.canvasElOff, 0, 0)
     }
 
     //通过鼠标坐标，获取方块数横纵坐标
@@ -187,12 +244,6 @@ export default class PixelPad {
         const boxX = Math.floor(x / this.option.boxSize)
         const boxY = Math.floor(y / this.option.boxSize)
         return {boxX, boxY}
-    }
-
-    drawBox(boxX, boxY) {
-        const currentDrawHistoryInfo = this.drawHistoryInfo[this.drawHistoryInfo.length - 1]
-        currentDrawHistoryInfo.push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
-        this.fillBoxInCanvas(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
     }
 
     // 切换当前使用工具
@@ -227,30 +278,49 @@ export default class PixelPad {
 
     // 撤销
     undo() {
-        const undoDraw = this.drawHistoryInfo.pop()
-        if (undoDraw) {
-            this.drawHistoryInfoForRedo.push(undoDraw)
-            this.fillBg()
-            this.fillBoxInCanvasFastByDrawHistoryInfo()
+        if (this.useHistoryInfo) {
+            const undoDraw = this.drawHistoryInfo.pop()
+            if (undoDraw) {
+                this.drawHistoryInfoForRedo.push(undoDraw)
+                this.fillBgInOff()
+                this.fillBoxInCanvasFastByDrawHistoryInfo()
+            }
+        } else {
+            console.log(' this.drawHistoryImages!!!', this.drawHistoryImages)
+            const undoDraw = this.drawHistoryImages.pop()
+            if (undoDraw) {
+                this.drawHistoryImagesForRedo.push(undoDraw)
+                this.fillBoxInCanvasFastByDrawHistoryImage()
+                console.log(' this.drawHistoryImagesXXX', this.drawHistoryImages)
+            }
         }
     }
 
     // 重做
     redo() {
-        const redoDraw = this.drawHistoryInfoForRedo.pop()
-        if (redoDraw) {
-            this.drawHistoryInfo.push(redoDraw)
-            this.fillBg()
-            this.fillBoxInCanvasFastByDrawHistoryInfo()
+        if (this.useHistoryInfo) {
+            const redoDraw = this.drawHistoryInfoForRedo.pop()
+            if (redoDraw) {
+                this.drawHistoryInfo.push(redoDraw)
+                this.fillBgInOff()
+                this.fillBoxInCanvasFastByDrawHistoryInfo()
+            }
+        } else {
+            const redoDraw = this.drawHistoryImagesForRedo.pop()
+            if (redoDraw) {
+                this.drawHistoryImages.push(redoDraw)
+                this.fillBoxInCanvasFastByDrawHistoryImage()
+            }
         }
     }
 
     // 使用保存的绘画像素信息填充画板
     load(drawInfo) {
-        this.fillBg()
+        this.fillBgInOff()
         for (const pixel of drawInfo) {
-            this.fillBoxInCanvas(pixel.x, pixel.y, pixel.color)
+            this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
+        this.ctx.drawImage(this.canvasElOff, 0, 0)
     }
 
     // 获取最终绘画像素信息

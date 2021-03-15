@@ -5,28 +5,25 @@
     <title>Title</title>
 </head>
 <body>
-<input type="button" onclick="enableEraserHandler()" value="擦除"/>
-<input type="button" onclick="enableDefaultHandler()" value="画笔"/>
+<input type="button" id="eraser" value="擦除"/>
+<input type="button" id="draw" value="画笔"/>
 <!--<input type="button" onclick="zoomUp()" value="放大"/>-->
 <!--<input type="button" onclick="zoomReset()" value="恢复缩放"/>-->
 <!--<input type="button" onclick="zoomIn()" value="缩小"/>-->
-<input type="button" onclick="undo()" value="撤销"/>
-<input type="button" onclick="redo()" value="重做"/>
-<input type="button" onclick="save()" value="保存"/>
+<input type="button" id="undo" value="撤销"/>
+<input type="button" id="redo" value="重做"/>
+<input type="button" id="save" value="保存"/>
 <input id="saveInput" value=""/>
-<input type="button" onclick="load()" value="加载"/>
+<input type="button" id="load" value="加载"/>
 <input id="loadInput" value=""/>
 
 <div id='pa' style="height: 320px;width:640px"></div>
 <script type="module">
     import PixelPad from './pixel-pad.js'
-    const pixelPad = new PixelPad(document.getElementById('pa'))
-    function enableEraserHandler() {
-        pixelPad.setUsingTool('eraser')
-    }
-    function enableDefaultHandler() {
-        pixelPad.setUsingTool()
-    }
+
+    const pixelPadEl = document.getElementById('pa');
+    const pixelPad = new PixelPad(pixelPadEl);
+
     // function zoomUp() {
     //     pixelPad.zoomUpdate(pixelPad.option.boxSize + 2)
     // }
@@ -38,21 +35,28 @@
     // function zoomReset() {
     //     pixelPad.zoomReset()
     // }
-    function undo() {
-        pixelPad.undo()
-    }
+    (function () {
+        document.getElementById('eraser').addEventListener('click', () => {
+            pixelPad.setUsingTool('eraser')
+        })
+        document.getElementById('draw').addEventListener('click', () => {
+            pixelPad.setUsingTool()
+        })
 
-    function redo() {
-        pixelPad.redo()
-    }
+        document.getElementById('undo').addEventListener('click', () => {
+            pixelPad.undo()
+        })
+        document.getElementById('redo').addEventListener('click', () => {
+            pixelPad.redo()
+        })
+        document.getElementById('save').addEventListener('click', () => {
+            document.getElementById('saveInput').value = JSON.stringify(pixelPad.save())
+        })
+        document.getElementById('load').addEventListener('click', () => {
+            pixelPad.load(JSON.parse(document.getElementById('loadInput').value))
+        })
 
-    function save() {
-        document.getElementById('saveInput').value = JSON.stringify(pixelPad.save())
-    }
-
-    function load() {
-        pixelPad.load(JSON.parse(document.getElementById('loadInput').value))
-    }
+    })()
 
 </script>
 </body>
