@@ -3,20 +3,21 @@ export default class PixelPad {
     canvasElOff
     ctxOff
     canvasEl
+    ctxCursor
+    canvasElCursor
     ctx
     option = {}
     optionOrigin = {}
     optionDefault = {
         bgColor: '#e8e8e8',
         drawColor: '#00a711',
-        boxSize: 10,
-        boxSizeMin: 5,
+        boxSize: 8,
+        boxSizeMin: 8,
         boxSizeMax: 20,
         gridLineWidth: 1,
     }
     preDrawBoxPoint = null
     bgImageData = null
-    // isMoving = false
     isDrawing = false
     isReducingDrewBox = false
     useHistoryInfo = false//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
@@ -34,26 +35,36 @@ export default class PixelPad {
     }
 
     initCanvasEl(htmlNode) {
-
         const setEl = (canvasEl) => {
             canvasEl.style.padding = '0'
             canvasEl.style.margin = '0'
             canvasEl.style.boxSizing = 'border-box'
             canvasEl.style.height = 100 + '%'
             canvasEl.style.width = 100 + '%'
+            canvasEl.style.cursor = 'none'
+            canvasEl.style.top = '0'
+            canvasEl.style.left = '0'
         }
         this.wrapperEl = document.createElement('div');
         setEl(this.wrapperEl)
+        this.wrapperEl.style.position = 'relative'
 
         this.canvasElOff = document.createElement('canvas');
         this.ctxOff = this.canvasElOff.getContext('2d')
         setEl(this.canvasElOff)
+
+        this.canvasElCursor = document.createElement('canvas');
+        this.ctxCursor = this.canvasElCursor.getContext('2d')
+        setEl(this.canvasElCursor)
+        this.canvasElCursor.style.position = 'absolute'
+        this.canvasElCursor.style.background = 'rgba(255,255,255,0)'
 
         this.canvasEl = document.createElement('canvas');
         this.ctx = this.canvasEl.getContext('2d')
         setEl(this.canvasEl)
 
         this.wrapperEl.append(this.canvasEl)
+        this.wrapperEl.append(this.canvasElCursor)
         htmlNode.append(this.wrapperEl)
     }
 
@@ -64,18 +75,24 @@ export default class PixelPad {
         }
         setCanvasSize(this.canvasEl)
         setCanvasSize(this.canvasElOff)
+        setCanvasSize(this.canvasElCursor)
         this.option.bgBoxNumX = parseInt(String(this.canvasEl.width / this.option.boxSize))
         this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
         this.fillBgInOff()
         this.ctx.drawImage(this.canvasElOff, 0, 0)
+        if (this.useHistoryInfo) {
+            this.fillBoxInCanvasFastByDrawHistoryInfo()
+        } else {
+            this.fillBoxInCanvasFastByDrawHistoryImage()
+        }
     }
 
     setAction() {
         const drawHandler = (e) => {
-            const x = e.pageX - this.canvasEl.getBoundingClientRect().left
-            const y = e.pageY - this.canvasEl.getBoundingClientRect().top
+            const x = e.offsetX
+            const y = e.offsetY
             const position = this.getBoxXY(x, y)
-            console.log('this.preDrawBoxPoint', this.preDrawBoxPoint)
+            // console.log('this.preDrawBoxPoint', this.preDrawBoxPoint)
             if (this.preDrawBoxPoint === null) {
                 const boxX = position.boxX
                 const boxY = position.boxY
@@ -131,10 +148,10 @@ export default class PixelPad {
                 } else if (yEnd < yStart) {
                     yDirection = -1
                 }
-                console.log('p ', xStart, yStart, xEnd, yEnd, xProgress)
-                console.log('d ', xDirection, yDirection)
+                // console.log('p ', xStart, yStart, xEnd, yEnd, xProgress)
+                // console.log('d ', xDirection, yDirection)
                 for (; xStart <= xEnd && (yDirection > 0 ? yStart <= yEnd : yStart >= yEnd); xStart += xProgress, yStart += yProgress * yDirection) {
-                    console.log(xStart, yStart, xEnd, yEnd, yDirection, xProgress, yProgress)
+                    // console.log(xStart, yStart, xEnd, yEnd, yDirection, xProgress, yProgress)
                     // console.log(xStart, yStart, Math.floor(xStart / this.option.boxSize), Math.floor(yStart / this.option.boxSize))
                     const boxX = Math.floor(xStart / this.option.boxSize)
                     const boxY = Math.floor(yStart / this.option.boxSize)
@@ -147,26 +164,7 @@ export default class PixelPad {
             this.preDrawBoxPoint = {x, y}
             this.ctx.drawImage(this.canvasElOff, 0, 0)
         }
-        // const moveHandler = (e) => {
-        //
-        // }
-        // document.addEventListener('keydown', (e) => {
-        //     if (e.key === 'Control') {
-        //         this.canvasEl.style.cursor='move'
-        //         this.isMoving = true
-        //     }
-        // })
-        // document.addEventListener('keyup', (e) => {
-        //     if (e.key === 'Control') {
-        //         this.canvasEl.style.cursor='auto'
-        //         this.isMoving = false
-        //     }
-        // })
-
-        this.canvasEl.addEventListener("mousedown", (e) => {
-            // if (this.isMoving) {
-            //     this.canvasEl.addEventListener("mousemove", moveHandler)
-            // } else {
+        this.canvasElCursor.addEventListener("mousedown", (e) => {
             if (this.useHistoryInfo) {
                 this.drawHistoryInfoForRedo = []
                 this.drawHistoryInfo.push([])
@@ -175,12 +173,10 @@ export default class PixelPad {
                 this.isDrawing = true
             }
             drawHandler(e)
-            this.canvasEl.addEventListener("mousemove", drawHandler)
-            // }
+            this.canvasElCursor.addEventListener("mousemove", drawHandler)
         })
         document.addEventListener("mouseup", () => {
-            // this.canvasEl.removeEventListener("mousemove", moveHandler)
-            this.canvasEl.removeEventListener("mousemove", drawHandler)
+            this.canvasElCursor.removeEventListener("mousemove", drawHandler)
             this.preDrawBoxPoint = null
             if (!this.useHistoryInfo) {
                 if (this.isDrawing) {
@@ -189,6 +185,41 @@ export default class PixelPad {
                 }
             }
         })
+        let curseImage
+        {
+            const c = document.createElement('canvas')
+            c.width = 15
+            c.height = 15
+            const ct = c.getContext('2d')
+            ct.beginPath()
+            ct.moveTo(0, 0)
+            ct.lineTo(c.width, c.height / 2)
+            ct.lineTo(c.width / 2, c.height / 2)
+            ct.lineTo(c.width / 2, c.height)
+            ct.closePath()
+            ct.lineWidth = 2
+            ct.strokeStyle = '#000'
+            ct.stroke()
+            ct.fillStyle = '#fff'
+            ct.fill()
+
+            ct.beginPath()
+            ct.lineWidth = 4
+            ct.moveTo(-1, -1)
+            ct.lineTo(1, 1)
+            ct.stroke()
+            curseImage = c
+        }
+        this.canvasElCursor.addEventListener("mousemove", (e) => {
+            const x = e.offsetX
+            const y = e.offsetY
+            this.ctxCursor.clearRect(0, 0, this.canvasElCursor.width, this.canvasElCursor.height)
+            this.ctxCursor.drawImage(curseImage, x, y)
+        })
+        this.canvasElCursor.addEventListener("mouseleave", (e) => {
+            this.ctxCursor.clearRect(0, 0, this.canvasElCursor.width, this.canvasElCursor.height)
+        })
+
     }
 
     fillBgInOff() {
@@ -286,12 +317,12 @@ export default class PixelPad {
                 this.fillBoxInCanvasFastByDrawHistoryInfo()
             }
         } else {
-            console.log(' this.drawHistoryImages!!!', this.drawHistoryImages)
+            // console.log(' this.drawHistoryImages!!!', this.drawHistoryImages)
             const undoDraw = this.drawHistoryImages.pop()
             if (undoDraw) {
                 this.drawHistoryImagesForRedo.push(undoDraw)
                 this.fillBoxInCanvasFastByDrawHistoryImage()
-                console.log(' this.drawHistoryImagesXXX', this.drawHistoryImages)
+                // console.log(' this.drawHistoryImagesXXX', this.drawHistoryImages)
             }
         }
     }
@@ -341,5 +372,6 @@ export default class PixelPad {
             }
         }
         return finallyDrawInfo.filter(e => e)
+
     }
 }

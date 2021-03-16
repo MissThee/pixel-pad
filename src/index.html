@@ -7,17 +7,17 @@
 <body>
 <input type="button" id="eraser" value="擦除"/>
 <input type="button" id="draw" value="画笔"/>
-<!--<input type="button" onclick="zoomUp()" value="放大"/>-->
-<!--<input type="button" onclick="zoomReset()" value="恢复缩放"/>-->
-<!--<input type="button" onclick="zoomIn()" value="缩小"/>-->
+<!--<input type="button" id="zoomUp" value="放大"/>-->
+<!--<input type="button" id="zoomReset" value="恢复缩放"/>-->
+<!--<input type="button" id="zoomIn" value="缩小"/>-->
 <input type="button" id="undo" value="撤销"/>
 <input type="button" id="redo" value="重做"/>
 <input type="button" id="save" value="保存"/>
-<input id="saveInput" value=""/>
 <input type="button" id="load" value="加载"/>
 <input id="loadInput" value=""/>
 
-<div id='pa' style="height: 320px;width:640px"></div>
+<div id='pa' style="height: 320px;width:800px"></div>
+
 <script type="module">
     import PixelPad from './pixel-pad.js'
 
@@ -36,6 +36,15 @@
     //     pixelPad.zoomReset()
     // }
     (function () {
+        // document.getElementById('zoomUp').addEventListener('click', () => {
+        //     pixelPad.zoomUpdate(16)
+        // })
+        // document.getElementById('zoomIn').addEventListener('click', () => {
+        //     pixelPad.zoomUpdate(8)
+        // })
+        // document.getElementById('zoomReset').addEventListener('click', () => {
+        //     pixelPad.zoomReset()
+        // })
         document.getElementById('eraser').addEventListener('click', () => {
             pixelPad.setUsingTool('eraser')
         })
@@ -50,7 +59,8 @@
             pixelPad.redo()
         })
         document.getElementById('save').addEventListener('click', () => {
-            document.getElementById('saveInput').value = JSON.stringify(pixelPad.save())
+            const save = pixelPad.save()
+            console.log('save', save, JSON.stringify(save).length)
         })
         document.getElementById('load').addEventListener('click', () => {
             pixelPad.load(JSON.parse(document.getElementById('loadInput').value))
