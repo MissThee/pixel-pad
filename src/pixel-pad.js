@@ -21,7 +21,7 @@ export default class PixelPad {
     preDrawBoxPoint = null
     isDrawing = false
     isReducingDrewBox = false
-    useHistoryInfo = true//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
+    useHistoryInfo = false//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
     drawHistoryImages = []
     drawHistoryImagesForRedo = []
     drawHistoryInfo = []
@@ -45,10 +45,13 @@ export default class PixelPad {
             canvasEl.style.cursor = 'none'
             canvasEl.style.top = '0'
             canvasEl.style.left = '0'
+            canvasEl.style.position = 'absolute'
+            canvasEl.style.background = 'rgba(255,255,255,0)'
         }
         this.wrapperEl = document.createElement('div');
         setEl(this.wrapperEl)
         this.wrapperEl.style.position = 'relative'
+        this.wrapperEl.style.background = 'rgba(255,255,255,1)'
 
         this.canvasElOff = document.createElement('canvas');
         this.ctxOff = this.canvasElOff.getContext('2d')
@@ -57,19 +60,14 @@ export default class PixelPad {
         this.canvasElCursor = document.createElement('canvas');
         this.ctxCursor = this.canvasElCursor.getContext('2d')
         setEl(this.canvasElCursor)
-        this.canvasElCursor.style.position = 'absolute'
-        this.canvasElCursor.style.background = 'rgba(255,255,255,0)'
 
         this.canvasElBackground = document.createElement('canvas');
         this.ctxBackground = this.canvasElBackground.getContext('2d')
         setEl(this.canvasElBackground)
-        this.canvasElBackground.style.position = 'absolute'
 
         this.canvasEl = document.createElement('canvas');
         this.ctx = this.canvasEl.getContext('2d')
         setEl(this.canvasEl)
-        this.canvasEl.style.background = 'rgba(255,255,255,0)'
-        this.canvasEl.style.position = 'absolute'
 
         this.wrapperEl.append(this.canvasElBackground)
         this.wrapperEl.append(this.canvasEl)
