@@ -2,9 +2,11 @@ export default class PixelPad {
     wrapperEl
     canvasElOff
     ctxOff
-    canvasEl
     ctxCursor
     canvasElCursor
+    ctxBackground
+    canvasElBackground
+    canvasEl
     ctx
     option = {}
     optionOrigin = {}
@@ -17,10 +19,9 @@ export default class PixelPad {
         gridLineWidth: 1,
     }
     preDrawBoxPoint = null
-    bgImageData = null
     isDrawing = false
     isReducingDrewBox = false
-    useHistoryInfo = false//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
+    useHistoryInfo = true//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
     drawHistoryImages = []
     drawHistoryImagesForRedo = []
     drawHistoryInfo = []
@@ -59,10 +60,18 @@ export default class PixelPad {
         this.canvasElCursor.style.position = 'absolute'
         this.canvasElCursor.style.background = 'rgba(255,255,255,0)'
 
+        this.canvasElBackground = document.createElement('canvas');
+        this.ctxBackground = this.canvasElBackground.getContext('2d')
+        setEl(this.canvasElBackground)
+        this.canvasElBackground.style.position = 'absolute'
+
         this.canvasEl = document.createElement('canvas');
         this.ctx = this.canvasEl.getContext('2d')
         setEl(this.canvasEl)
+        this.canvasEl.style.background = 'rgba(255,255,255,0)'
+        this.canvasEl.style.position = 'absolute'
 
+        this.wrapperEl.append(this.canvasElBackground)
         this.wrapperEl.append(this.canvasEl)
         this.wrapperEl.append(this.canvasElCursor)
         htmlNode.append(this.wrapperEl)
@@ -76,9 +85,10 @@ export default class PixelPad {
         setCanvasSize(this.canvasEl)
         setCanvasSize(this.canvasElOff)
         setCanvasSize(this.canvasElCursor)
+        setCanvasSize(this.canvasElBackground)
         this.option.bgBoxNumX = parseInt(String(this.canvasEl.width / this.option.boxSize))
         this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
-        this.fillBgInOff()
+        this.fillBg()
         this.ctx.drawImage(this.canvasElOff, 0, 0)
         if (this.useHistoryInfo) {
             this.fillBoxInCanvasFastByDrawHistoryInfo()
@@ -222,18 +232,14 @@ export default class PixelPad {
 
     }
 
-    fillBgInOff() {
-        if (this.bgImageData) {
-            this.ctxOff.putImageData(this.bgImageData, 0, 0)
-            this.ctx.putImageData(this.bgImageData, 0, 0)
-            return
-        }
+    fillBg() {
         for (let boxX = 0; boxX < this.option.bgBoxNumX; boxX++) {
             for (let boxY = 0; boxY < this.option.bgBoxNumY; boxY++) {
                 this.fillBoxInCanvasInOff(boxX, boxY)
             }
         }
-        this.bgImageData = this.ctxOff.getImageData(0, 0, this.canvasElOff.width, this.canvasElOff.height)
+        this.ctxBackground.drawImage(this.canvasElOff,0,0)
+        this.ctxOff.clearRect(0,0,this.canvasElOff.width, this.canvasElOff.height)
     }
 
     fillBoxInCanvasInOff(boxX, boxY, color) {
@@ -257,13 +263,15 @@ export default class PixelPad {
             this.ctx.putImageData(lastImage, 0, 0)
             this.ctxOff.putImageData(lastImage, 0, 0)
         } else {
-            this.fillBgInOff()
+            this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
+            this.ctxOff.clearRect(0,0,this.canvasElOff.width,this.canvasElOff.height)
         }
     }
 
     // 使用历史记录中的点填充画板
     fillBoxInCanvasFastByDrawHistoryInfo() {
         const finallyDrawInfo = this.save()
+        this.ctxOff.clearRect(0,0,this.canvasElOff.width,this.canvasElOff.height)
         for (const pixel of finallyDrawInfo) {
             this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
@@ -313,7 +321,7 @@ export default class PixelPad {
             const undoDraw = this.drawHistoryInfo.pop()
             if (undoDraw) {
                 this.drawHistoryInfoForRedo.push(undoDraw)
-                this.fillBgInOff()
+                this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
                 this.fillBoxInCanvasFastByDrawHistoryInfo()
             }
         } else {
@@ -333,7 +341,7 @@ export default class PixelPad {
             const redoDraw = this.drawHistoryInfoForRedo.pop()
             if (redoDraw) {
                 this.drawHistoryInfo.push(redoDraw)
-                this.fillBgInOff()
+                this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
                 this.fillBoxInCanvasFastByDrawHistoryInfo()
             }
         } else {
@@ -347,7 +355,7 @@ export default class PixelPad {
 
     // 使用保存的绘画像素信息填充画板
     load(drawInfo) {
-        this.fillBgInOff()
+        this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
         for (const pixel of drawInfo) {
             this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
