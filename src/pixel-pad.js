@@ -1,16 +1,21 @@
 export default class PixelPad {
     wrapperEl
+    // 指针显示层
+    canvasElCursor
+    ctxCursor
+    // 离屏绘制层
     canvasElOff
     ctxOff
-    ctxCursor
-    canvasElCursor
-    ctxBackground
+    // 背景层
     canvasElBackground
+    ctxBackground
+    // 显示层
     canvasEl
     ctx
-    option = {}
-    optionOrigin = {}
-    optionDefault = {
+    // 配置
+    option = {} // 用户配置
+    optionOrigin = {} // 用户配置原始值，重置option使用
+    optionDefault = { // 默认配置
         bgColor: '#e8e8e8',
         drawColor: '#00a711',
         boxSize: 8,
@@ -19,13 +24,10 @@ export default class PixelPad {
         gridLineWidth: 1,
     }
     preDrawBoxPoint = null
-    isDrawing = false
-    isReducingDrewBox = false
-    useHistoryInfo = false//true使用记录的绘画记录绘制，可详细到绘制过程;false使用整张替换，无过程但更快
-    drawHistoryImages = []
-    drawHistoryImagesForRedo = []
     drawHistoryInfo = []
+    drawHistoryImageInfo = []
     drawHistoryInfoForRedo = []
+    drawHistoryImageInfoForRedo = []
 
     constructor(htmlNode, option) {
         this.option = {...this.optionDefault, ...option}
@@ -33,6 +35,7 @@ export default class PixelPad {
         this.initCanvasEl(htmlNode)
         this.setPad()
         this.setAction()
+        this.setCursor()
     }
 
     initCanvasEl(htmlNode) {
@@ -75,6 +78,7 @@ export default class PixelPad {
         htmlNode.append(this.wrapperEl)
     }
 
+
     setPad() {
         const setCanvasSize = (canvasEl) => {
             canvasEl.width = this.canvasEl.clientWidth
@@ -88,11 +92,7 @@ export default class PixelPad {
         this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
         this.fillBg()
         this.ctx.drawImage(this.canvasElOff, 0, 0)
-        if (this.useHistoryInfo) {
-            this.fillBoxInCanvasFastByDrawHistoryInfo()
-        } else {
-            this.fillBoxInCanvasFastByDrawHistoryImage()
-        }
+        this.fillBoxInCanvasFastByDrawHistoryInfo()
     }
 
     setAction() {
@@ -104,10 +104,8 @@ export default class PixelPad {
             if (this.preDrawBoxPoint === null) {
                 const boxX = position.boxX
                 const boxY = position.boxY
-                if (this.useHistoryInfo) {
-                    this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
-                }
-                this.fillBoxInCanvasInOff(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
+                this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.option.drawColor})//擦除的位置color为null
+                this.fillBoxInCanvasInOff(boxX, boxY, this.option.drawColor)
             } else {
                 //起点和终点定位到当前格子的正中心
                 const xStartFixed = Math.floor(this.preDrawBoxPoint.x / this.option.boxSize) * this.option.boxSize + this.option.boxSize / 2
@@ -163,36 +161,30 @@ export default class PixelPad {
                     // console.log(xStart, yStart, Math.floor(xStart / this.option.boxSize), Math.floor(yStart / this.option.boxSize))
                     const boxX = Math.floor(xStart / this.option.boxSize)
                     const boxY = Math.floor(yStart / this.option.boxSize)
-                    if (this.useHistoryInfo) {
-                        this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.isReducingDrewBox ? null : this.option.drawColor})//擦除的位置color为null
-                    }
-                    this.fillBoxInCanvasInOff(boxX, boxY, this.isReducingDrewBox ? this.option.bgColor : this.option.drawColor)
+                    this.drawHistoryInfo[this.drawHistoryInfo.length - 1].push({x: boxX, y: boxY, color: this.option.drawColor})//擦除的位置color为null（但实际擦除位置使用背景色填充）
+                    this.fillBoxInCanvasInOff(boxX, boxY, this.option.drawColor)
                 }
             }
             this.preDrawBoxPoint = {x, y}
             this.ctx.drawImage(this.canvasElOff, 0, 0)
         }
-        this.canvasElCursor.addEventListener("mousedown", (e) => {
-            if (this.useHistoryInfo) {
-                this.drawHistoryInfoForRedo = []
-                this.drawHistoryInfo.push([])
-            } else {
-                this.drawHistoryImagesForRedo = []
-                this.isDrawing = true
-            }
+        const mousedownEvent = (e) => {
+            this.drawHistoryInfoForRedo = []
+            this.drawHistoryInfo.push([])
             drawHandler(e)
             this.canvasElCursor.addEventListener("mousemove", drawHandler)
-        })
-        document.addEventListener("mouseup", () => {
+        }
+        const mouseupEvent = () => {
             this.canvasElCursor.removeEventListener("mousemove", drawHandler)
             this.preDrawBoxPoint = null
-            if (!this.useHistoryInfo) {
-                if (this.isDrawing) {
-                    this.drawHistoryImages.push(this.ctxOff.getImageData(0, 0, this.canvasElOff.width, this.canvasElOff.height))
-                    this.isDrawing = false
-                }
-            }
-        })
+        }
+
+        this.canvasElCursor.addEventListener("mousedown", mousedownEvent)
+        document.addEventListener("mouseup", mouseupEvent)
+
+    }
+
+    setCursor() {
         let curseImage
         {
             const c = document.createElement('canvas')
@@ -218,26 +210,27 @@ export default class PixelPad {
             ct.stroke()
             curseImage = c
         }
-        this.canvasElCursor.addEventListener("mousemove", (e) => {
+        const mousemoveEvent = (e) => {
             const x = e.offsetX
             const y = e.offsetY
             this.ctxCursor.clearRect(0, 0, this.canvasElCursor.width, this.canvasElCursor.height)
             this.ctxCursor.drawImage(curseImage, x, y)
-        })
-        this.canvasElCursor.addEventListener("mouseleave", (e) => {
+        }
+        const mouseleaveEvent = () => {
             this.ctxCursor.clearRect(0, 0, this.canvasElCursor.width, this.canvasElCursor.height)
-        })
-
+        }
+        this.canvasElCursor.addEventListener("mousemove", mousemoveEvent)
+        this.canvasElCursor.addEventListener("mouseleave", mouseleaveEvent)
     }
 
     fillBg() {
         for (let boxX = 0; boxX < this.option.bgBoxNumX; boxX++) {
             for (let boxY = 0; boxY < this.option.bgBoxNumY; boxY++) {
-                this.fillBoxInCanvasInOff(boxX, boxY)
+                this.fillBoxInCanvasInOff(boxX, boxY, this.option.bgColor)
             }
         }
-        this.ctxBackground.drawImage(this.canvasElOff,0,0)
-        this.ctxOff.clearRect(0,0,this.canvasElOff.width, this.canvasElOff.height)
+        this.ctxBackground.drawImage(this.canvasElOff, 0, 0)
+        this.ctxOff.clearRect(0, 0, this.canvasElOff.width, this.canvasElOff.height)
     }
 
     fillBoxInCanvasInOff(boxX, boxY, color) {
@@ -248,28 +241,16 @@ export default class PixelPad {
             const splitLineFix = gridLineWidth
             const x = boxX * this.option.boxSize + splitLineStart
             const y = boxY * this.option.boxSize + splitLineStart
-            const w = this.option.boxSize - splitLineFix
-            const h = w
+            const a = this.option.boxSize - splitLineFix
             this.ctxOff.fillStyle = color || this.option.bgColor;
-            this.ctxOff.fillRect(x, y, w, h);
-        }
-    }
-
-    fillBoxInCanvasFastByDrawHistoryImage() {
-        const lastImage = this.drawHistoryImages[this.drawHistoryImages.length - 1]
-        if (lastImage) {
-            this.ctx.putImageData(lastImage, 0, 0)
-            this.ctxOff.putImageData(lastImage, 0, 0)
-        } else {
-            this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
-            this.ctxOff.clearRect(0,0,this.canvasElOff.width,this.canvasElOff.height)
+            this.ctxOff.fillRect(x, y, a, a);
         }
     }
 
     // 使用历史记录中的点填充画板
-    fillBoxInCanvasFastByDrawHistoryInfo() {
-        const finallyDrawInfo = this.save()
-        this.ctxOff.clearRect(0,0,this.canvasElOff.width,this.canvasElOff.height)
+    fillBoxInCanvasFastByDrawHistoryInfo(drawInfo) {
+        const finallyDrawInfo = drawInfo || this.save()
+        this.ctxOff.clearRect(0, 0, this.canvasElOff.width, this.canvasElOff.height)
         for (const pixel of finallyDrawInfo) {
             this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
@@ -287,10 +268,10 @@ export default class PixelPad {
     setUsingTool(toolName) {
         switch (toolName) {
             case "eraser":
-                this.isReducingDrewBox = true
+                this.option.drawColor = null
                 break;
             default:
-                this.isReducingDrewBox = false
+                this.option.drawColor = this.optionOrigin.drawColor
                 break;
         }
     }
@@ -315,45 +296,26 @@ export default class PixelPad {
 
     // 撤销
     undo() {
-        if (this.useHistoryInfo) {
-            const undoDraw = this.drawHistoryInfo.pop()
-            if (undoDraw) {
-                this.drawHistoryInfoForRedo.push(undoDraw)
-                this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
-                this.fillBoxInCanvasFastByDrawHistoryInfo()
-            }
-        } else {
-            // console.log(' this.drawHistoryImages!!!', this.drawHistoryImages)
-            const undoDraw = this.drawHistoryImages.pop()
-            if (undoDraw) {
-                this.drawHistoryImagesForRedo.push(undoDraw)
-                this.fillBoxInCanvasFastByDrawHistoryImage()
-                // console.log(' this.drawHistoryImagesXXX', this.drawHistoryImages)
-            }
+        const undoDraw = this.drawHistoryInfo.pop()
+        if (undoDraw) {
+            this.drawHistoryInfoForRedo.push(undoDraw)
+            this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
+            this.fillBoxInCanvasFastByDrawHistoryInfo()
         }
     }
 
     // 重做
     redo() {
-        if (this.useHistoryInfo) {
-            const redoDraw = this.drawHistoryInfoForRedo.pop()
-            if (redoDraw) {
-                this.drawHistoryInfo.push(redoDraw)
-                this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
-                this.fillBoxInCanvasFastByDrawHistoryInfo()
-            }
-        } else {
-            const redoDraw = this.drawHistoryImagesForRedo.pop()
-            if (redoDraw) {
-                this.drawHistoryImages.push(redoDraw)
-                this.fillBoxInCanvasFastByDrawHistoryImage()
-            }
+        const redoDraw = this.drawHistoryInfoForRedo.pop()
+        if (redoDraw) {
+            this.drawHistoryInfo.push(redoDraw)
+            this.fillBoxInCanvasFastByDrawHistoryInfo(redoDraw)
         }
     }
 
     // 使用保存的绘画像素信息填充画板
     load(drawInfo) {
-        this.ctx.clearRect(0,0,this.canvasEl.width,this.canvasEl.height)
+        this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
         for (const pixel of drawInfo) {
             this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
