@@ -24,6 +24,7 @@ export default class PixelPad {
         gridLineWidth: 1,
     }
     preDrawBoxPoint = null
+    isDrawing = false
     drawHistoryInfo = []
     drawHistoryImageInfo = []
     drawHistoryInfoForRedo = []
@@ -92,7 +93,7 @@ export default class PixelPad {
         this.option.bgBoxNumY = parseInt(String(this.canvasEl.height / this.option.boxSize))
         this.fillBg()
         this.ctx.drawImage(this.canvasElOff, 0, 0)
-        this.fillBoxInCanvasFastByDrawHistoryInfo()
+        this.fillBoxInCanvasByDrawInfo(this.drawHistoryImageInfo[this.drawHistoryImageInfo.length - 1] || [])
     }
 
     setAction() {
@@ -166,17 +167,25 @@ export default class PixelPad {
                 }
             }
             this.preDrawBoxPoint = {x, y}
+
             this.ctx.drawImage(this.canvasElOff, 0, 0)
         }
         const mousedownEvent = (e) => {
+            this.isDrawing = true
+            this.drawHistoryImageInfoForRedo = []
             this.drawHistoryInfoForRedo = []
             this.drawHistoryInfo.push([])
             drawHandler(e)
             this.canvasElCursor.addEventListener("mousemove", drawHandler)
         }
         const mouseupEvent = () => {
-            this.canvasElCursor.removeEventListener("mousemove", drawHandler)
-            this.preDrawBoxPoint = null
+            if (this.isDrawing) {
+                const drawImageInfo = this.buildDrawImageInfo()
+                this.drawHistoryImageInfo.push(drawImageInfo)
+                this.canvasElCursor.removeEventListener("mousemove", drawHandler)
+                this.preDrawBoxPoint = null
+                this.isDrawing = false
+            }
         }
 
         this.canvasElCursor.addEventListener("mousedown", mousedownEvent)
@@ -248,10 +257,9 @@ export default class PixelPad {
     }
 
     // 使用历史记录中的点填充画板
-    fillBoxInCanvasFastByDrawHistoryInfo(drawInfo) {
-        const finallyDrawInfo = drawInfo || this.save()
+    fillBoxInCanvasByDrawInfo(drawInfo) {
         this.ctxOff.clearRect(0, 0, this.canvasElOff.width, this.canvasElOff.height)
-        for (const pixel of finallyDrawInfo) {
+        for (const pixel of drawInfo) {
             this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
         }
         this.ctx.drawImage(this.canvasElOff, 0, 0)
@@ -262,6 +270,19 @@ export default class PixelPad {
         const boxX = Math.floor(x / this.option.boxSize)
         const boxY = Math.floor(y / this.option.boxSize)
         return {boxX, boxY}
+    }
+
+    buildDrawImageInfo() {
+        const result = []
+        const d1 = this.drawHistoryImageInfo[this.drawHistoryImageInfo.length - 1]
+        if (d1) {
+            result.push(...d1)
+        }
+        const d2 = this.drawHistoryInfo[this.drawHistoryInfo.length - 1]
+        if (d2) {
+            result.push(...d2)
+        }
+        return result
     }
 
     // 切换当前使用工具
@@ -296,30 +317,52 @@ export default class PixelPad {
 
     // 撤销
     undo() {
+        // 整图历史记录
+        // 撤销时使用整图记录重绘
+        const currentDrawImage = this.drawHistoryImageInfo.pop()
+        if (currentDrawImage) {
+            this.drawHistoryImageInfoForRedo.push(currentDrawImage)
+            const undoDrawImage = this.drawHistoryImageInfo[this.drawHistoryImageInfo.length - 1]
+            this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
+            this.fillBoxInCanvasByDrawInfo(undoDrawImage || [])
+        }
+        // 笔画历史记录
         const undoDraw = this.drawHistoryInfo.pop()
         if (undoDraw) {
             this.drawHistoryInfoForRedo.push(undoDraw)
-            this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
-            this.fillBoxInCanvasFastByDrawHistoryInfo()
         }
     }
 
     // 重做
     redo() {
+        // 整图历史记录
+        const redoDrawImage = this.drawHistoryImageInfoForRedo.pop()
+        if (redoDrawImage) {
+            this.drawHistoryImageInfo.push(redoDrawImage)
+        }
+        // 笔画历史记录
+        // 重做时使用笔画记录绘制
         const redoDraw = this.drawHistoryInfoForRedo.pop()
         if (redoDraw) {
             this.drawHistoryInfo.push(redoDraw)
-            this.fillBoxInCanvasFastByDrawHistoryInfo(redoDraw)
+            this.fillBoxInCanvasByDrawInfo(redoDraw)
         }
     }
 
-    // 使用保存的绘画像素信息填充画板
+    // 使用保存的绘画像素信息填充画板，并作为一步绘画记录存储
     load(drawInfo) {
+        this.drawHistoryImageInfoForRedo = []
+        this.drawHistoryInfo = []
+        this.drawHistoryImageInfo.push(drawInfo)
+        this.drawHistoryInfo.push(drawInfo)
         this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
-        for (const pixel of drawInfo) {
-            this.fillBoxInCanvasInOff(pixel.x, pixel.y, pixel.color)
-        }
-        this.ctx.drawImage(this.canvasElOff, 0, 0)
+        this.fillBoxInCanvasByDrawInfo(drawInfo)
+    }
+
+    // 使用保存的绘画像素信息填充画板
+    view(drawInfo) {
+        this.ctx.clearRect(0, 0, this.canvasEl.width, this.canvasEl.height)
+        this.fillBoxInCanvasByDrawInfo(drawInfo)
     }
 
     // 获取最终绘画像素信息
