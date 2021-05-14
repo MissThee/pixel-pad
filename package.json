@@ -1,0 +1,21 @@
+{
+  "name": "pixelpad",
+  "version": "1.0.0",
+  "description": "PixelPad",
+  "main": "pixel-pad.js",
+  "scripts": {
+    "install-typescrupt": "npm -g install typescript",
+    "tsc": "tsc",
+    "tsc:watch": "tsc -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MissThee/pixel-pad.git"
+  },
+  "author": "MissThee",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MissThee/pixel-pad/issues"
+  },
+  "homepage": "https://github.com/MissThee/pixel-pad#readme"
+}
